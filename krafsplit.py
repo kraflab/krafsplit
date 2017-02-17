@@ -171,7 +171,7 @@ class SplitContainer:
             self.save_splits_(cfg.last_file + c, change_name=False)
     
     # read splits from file
-    def readsplits(self, file_name):
+    def read_splits(self, file_name):
         if not os.path.isfile(file_name):
             return
         self.accrued_time.zero()
@@ -247,7 +247,7 @@ class SplitContainer:
         if key.hit(pykey.O):
             openPath = filedialog.askopenfilename(defaultextension=".ks")
             if openPath != "":
-                self.readsplits(openPath)
+                self.read_splits(openPath)
         
         # change the number of splits
         if key.hit(pykey.N):
