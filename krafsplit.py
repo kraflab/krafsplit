@@ -15,7 +15,7 @@ from tkinter import simpledialog
 root = tkinter.Tk()
 root.withdraw()
 
-# pyglet stuff
+# improves pyglet performance (allegedly)
 pyglet.options['debug_gl'] = False
 label = pyglet.text.Label
 
@@ -26,366 +26,391 @@ label = pyglet.text.Label
 import key
 from dtime import dTime
 import memory as mem
-from split import split
+from split import Split
 import cfg
 
+# set up configuration variables and pyglet
 cfg.init()
-window = pyglet.window.Window(width=cfg.WindowWidth, height=cfg.WindowHeight, caption='krafSplit')
+window = pyglet.window.Window(width=cfg.window_width, height=cfg.window_height, caption='krafSplit')
 
-# container for it all
-class _screen_:
-  labelBatch = pyglet.graphics.Batch()
-  currentTime = dTime()
-  totalTime = dTime()
-  prevTotal = dTime()
-  sumOfBest = dTime()
-  accruedTime = dTime()
-  prevAccrued = dTime()
-  runningMap = 0
-  totalTimeLabel = label()
-  currentTimeLabel = label()
-  bestTimeLabel = label()
-  accruedTimeLabel = label()
-  splits = []
-  doneIntermission = 0
-  title = ""
-  titleLabel = label()
-  subTitle = ""
-  subTitleLabel = label()
-  completionLabel = label()
-  resetLabel = label()
-  sumOfBestLabel = label()
-  attempts = 0
-  mapsPlayed = 0
-  currentMap = 0
+# container for the splits
+class SplitContainer:
+    # batches improve draw performance
+    label_batch = pyglet.graphics.Batch()
+    current_time = dTime()
+    total_time   = dTime()
+    prev_total   = dTime()
+    sum_of_best  = dTime()
+    accrued_time = dTime()
+    prev_accrued = dTime()
+    done_intermission = 0
+    attempts    = 0
+    maps_played = 0
+    current_map = 0
+    title     = ""
+    subtitle = ""
+    splits = []
+    total_time_label   = label()
+    current_time_label = label()
+    best_time_label    = label()
+    accrued_time_label = label()
+    title_label        = label()
+    subtitle_label    = label()
+    completion_label   = label()
+    reset_label        = label()
+    sum_of_best_label  = label()
   
-  def __init__(self):
-    self.labelBatch = pyglet.graphics.Batch()
-    self.currentTime = dTime()
-    self.totalTime = dTime()
-    self.prevTotal = dTime()
-    self.sumOfBest = dTime()
-    self.prevAccrued = dTime()
-    self.accruedTime = dTime()
-    self.runningMap = 0
-    self.title = "Untitled"
-    self.titleLabel       = label(self.title,    font_name=cfg.fontName, font_size=cfg.FontSize,      x=cfg.XPadding,                   y=cfg.WindowHeight - cfg.YPadding,               anchor_x='left',  anchor_y='top',    color=cfg.titleColor,       batch=self.labelBatch)
-    self.attemptsLabel    = label("0",           font_name=cfg.fontName, font_size=cfg.FontSize,      x=cfg.WindowWidth - cfg.XPadding, y=self.titleLabel.y,                             anchor_x='right', anchor_y='top',    color=cfg.attemptsColor,    batch=self.labelBatch)
-    self.subTitleLabel    = label(self.subTitle, font_name=cfg.fontName, font_size=cfg.SmallFontSize, x=cfg.XPadding,                   y=self.titleLabel.y - cfg.CharacterY,            anchor_x='left',  anchor_y='top',    color=cfg.subTitleColor,    batch=self.labelBatch)
-    self.totalTimeLabel   = label("0:00",        font_name=cfg.fontName, font_size=cfg.BigFontSize,   x=cfg.WindowWidth - cfg.XPadding, y=self.subTitleLabel.y - cfg.SmallCharacterY,    anchor_x='right', anchor_y='top',    color=cfg.timeNeutralColor, batch=self.labelBatch)
-    self.sumOfBestLabel   = label("",            font_name=cfg.fontName, font_size=cfg.BigFontSize,   x=cfg.XPadding,                   y=self.subTitleLabel.y - cfg.SmallCharacterY,    anchor_x='left',  anchor_y='top',    color=cfg.timeBestColor,    batch=self.labelBatch)
-    self.bestTimeLabel    = label("",            font_name=cfg.fontName, font_size=cfg.SmallFontSize, x=cfg.XPadding,                   y=self.sumOfBestLabel.y - cfg.BigCharacterY,     anchor_x='left',  anchor_y='top',    color=cfg.timeBestColor,    batch=self.labelBatch)
-    self.currentTimeLabel = label("0.00",        font_name=cfg.fontName, font_size=cfg.SmallFontSize, x=cfg.WindowWidth - cfg.XPadding, y=self.totalTimeLabel.y - cfg.BigCharacterY,     anchor_x='right', anchor_y='top',    color=cfg.timeNeutralColor, batch=self.labelBatch)
-    self.resetLabel       = label("",            font_name=cfg.fontName, font_size=cfg.SmallFontSize, x=cfg.WindowWidth - cfg.XPadding, y=self.currentTimeLabel.y - cfg.SmallCharacterY, anchor_x='right', anchor_y='top',    color=cfg.resetsColor,      batch=self.labelBatch)
-    self.completionLabel  = label("",            font_name=cfg.fontName, font_size=cfg.SmallFontSize, x=cfg.WindowWidth - cfg.XPadding, y=self.resetLabel.y - cfg.SmallCharacterY,       anchor_x='right', anchor_y='top',    color=cfg.completionColor,  batch=self.labelBatch)
-    self.accruedTimeLabel = label("0:00",        font_name=cfg.fontName, font_size=cfg.SmallFontSize, x=cfg.XPadding,                   y=cfg.YPadding,                                  anchor_x='left',  anchor_y='bottom', color=cfg.timeNeutralColor, batch=self.labelBatch)
-    self.splits = []
-    self.doneIntermission = 0
-    self.attempts = 0
-    self.mapsPlayed = 0
-    self.currentMap = 0
-  
-  def updateLabels(self):
-    self.attemptsLabel.text = str(self.attempts)
-    if self.mapsPlayed == 0:
-      self.totalTimeLabel.color = cfg.timeNeutralColor
-      self.bestTimeLabel.text = ""
-      self.resetLabel.text = ""
-    else:
-      if len(self.splits) >= self.mapsPlayed:
-        self.bestTimeLabel.text = self.splits[self.mapsPlayed - 1].bestTime.toString()
-        if self.bestTimeLabel.text == "0.00":
-          self.bestTimeLabel.text = "---"
-        self.resetLabel.text = self.splits[self.mapsPlayed - 1].resetText()
-      if len(self.splits) < self.mapsPlayed:
-        better = 0
-      else:
-        better = self.totalTime.compareSecs(self.splits[self.mapsPlayed - 1].prevTotal)
-      if better < 0:
-        self.totalTimeLabel.color = cfg.timeBadColor
-      elif better > 0:
-        self.totalTimeLabel.color = cfg.timeGoodColor
-      else:
-        self.totalTimeLabel.color = cfg.timeNeutralColor
-    if self.mapsPlayed == 0:
-      self.currentTimeLabel.color = cfg.timeNeutralColor
-    else:
-      if len(self.splits) < self.mapsPlayed:
-        better = 0
-      else:
-        better = self.currentTime.compareSecs(self.splits[self.mapsPlayed - 1].prevTime)
-      if better < 0:
-        self.currentTimeLabel.color = cfg.timeBadColor
-      elif better > 0:
-        self.currentTimeLabel.color = cfg.timeGoodColor
-      else:
-        self.currentTimeLabel.color = cfg.timeNeutralColor
-    self.totalTimeLabel.text   = self.totalTime.toString(centi=False, forceM=True)
-    self.currentTimeLabel.text = self.currentTime.toString()
-    self.accruedTimeLabel.text = self.accruedTime.toString(centi=True, forceM=True)
-  
-  def updateTitle(self, newTitle="DooM"):
-    self.title = newTitle
-    self.titleLabel.text = self.title
-    self.buildSplits()
-  
-  def updateSubTitle(self, newTitle=""):
-    self.subTitle = newTitle
-    self.subTitleLabel.text = self.subTitle
-    self.buildSplits()
-  
-  def saveSplits_(self, fileName, changeName=True):
-    if changeName:
-      cfg.lastFile = fileName
-    
-    f = open(fileName, 'w')
-    
-    print(self.title, file=f)
-    print(self.subTitle, file=f)
-    print(self.attempts, file=f)
-    print(self.accruedTime.toSimpleString(), file=f)
-    
-    for s in self.splits:
-      print(s.name + "; " + s.prevTime.toSimpleString() + " " + s.bestTime.toSimpleString() + " " + str(s.resets) + " " + str(s.arrivals), file=f)
-    
-    f.close()
-  
-  def saveSplits(self):
-    if cfg.lastFile != "":
-      self.backup("_s")
-      self.saveSplits_(cfg.lastFile)
-    else:
-      savePath = filedialog.asksaveasfilename(defaultextension=".ks", filetypes=[('krafsplit files', '.ks')])
-      if savePath == "":
-        return
-      self.saveSplits_(savePath)
-  
-  def backup(self, c="_"):
-    if cfg.lastFile != "":
-      self.saveSplits_(cfg.lastFile + c, changeName=False)
-  
-  def readSplits(self, fileName):
-    if not os.path.isfile(fileName):
-      return
-    self.accruedTime.zero()
-    self.splits.clear()
-    cfg.lastFile = fileName
-    f = open(fileName, 'r')
-    self.updateTitle(f.readline().rstrip())
-    self.updateSubTitle(f.readline().rstrip())
-    self.attempts = int(f.readline().rstrip())
-    self.prevAccrued = dTime(text=f.readline().rstrip())
-    self.accruedTime.copy(self.prevAccrued)
-    for line in f:
-      l = line.rstrip()
-      if len(self.splits) > 0:
-        self.splits.append(split(l, sum=self.splits[-1].prevTotal))
-      else:
-        self.splits.append(split(l))
-    self.buildSplits()
-    self.backup()
-  
-  def finishRun(self):
-    if self.splits[-1].improved():
-      for s in self.splits:
-        s.overwrite()
-  
-  def makeSumOfBest(self):
-    self.sumOfBest.zero()
-    for s in self.splits:
-      if not s.bestTime.exists():
-        self.sumOfBest.zero()
-        break
-      self.sumOfBest.addSecs(s.bestTime)
-    self.sumOfBestLabel.text = self.sumOfBest.toString(centi=False, forceM=True)
-  
-  def update(self):        
-    if key.hit(pykey.C):
-      self.accruedTime.zero()
-      self.prevAccrued.zero()
-      self.splits = []
-      self.attempts = 0
-      self.updateSubTitle()
-      self.updateTitle()
-      self.buildSplits()
-      cfg.lastFile = ""
-    
-    if key.hit(pykey.S):
-      self.saveSplits()
-    
-    if key.hit(pykey.T):
-      title = simpledialog.askstring("", "Title")
-      if title == "" or title == None:
-        title = "Untitled"
-      self.updateTitle(title)
-    
-    if key.hit(pykey.Y):
-      subTitle = simpledialog.askstring("", "Sub Title")
-      if subTitle == None:
-        subTitle = ""
-      self.updateSubTitle(subTitle)
-    
-    if key.hit(pykey.H):
-      cfg.hideSplits = int(cfg.hideSplits == 0)
-      self.buildSplits()
-    
-    if key.hit(pykey.O):
-      openPath = filedialog.askopenfilename(defaultextension=".ks")
-      if openPath != "":
-        self.readSplits(openPath)
-    
-    if key.hit(pykey.N):
-      n = simpledialog.askstring("", "Split Count")
-      if n is not None:
-        n = int(n)
-      else:
-        n = 0
-      while len(self.splits) < n:
-        self.splits.append(split(new=True))
-      if n == 0:
+    def __init__(self):
+        self.label_batch = pyglet.graphics.Batch()
+        self.current_time = dTime()
+        self.total_time   = dTime()
+        self.prev_total   = dTime()
+        self.sum_of_best  = dTime()
+        self.prev_accrued = dTime()
+        self.accrued_time = dTime()
+        self.title = "Untitled"
+        self.title_label        = label(self.title,     font_name=cfg.font_name, font_size=cfg.font_size,       x=cfg.x_padding,                    y=cfg.window_height - cfg.y_padding,                  anchor_x='left',  anchor_y='top',    color=cfg.title_color,        batch=self.label_batch)
+        self.attempts_label     = label("0",            font_name=cfg.font_name, font_size=cfg.font_size,       x=cfg.window_width - cfg.x_padding, y=self.title_label.y,                                 anchor_x='right', anchor_y='top',    color=cfg.attempts_color,     batch=self.label_batch)
+        self.subtitle_label    = label(self.subtitle, font_name=cfg.font_name, font_size=cfg.small_font_size, x=cfg.x_padding,                    y=self.title_label.y - cfg.character_y,               anchor_x='left',  anchor_y='top',    color=cfg.subtitle_color,    batch=self.label_batch)
+        self.total_time_label   = label("0:00",         font_name=cfg.font_name, font_size=cfg.big_font_size,   x=cfg.window_width - cfg.x_padding, y=self.subtitle_label.y - cfg.small_character_y,     anchor_x='right', anchor_y='top',    color=cfg.time_neutral_color, batch=self.label_batch)
+        self.sum_of_best_label  = label("",             font_name=cfg.font_name, font_size=cfg.big_font_size,   x=cfg.x_padding,                    y=self.subtitle_label.y - cfg.small_character_y,     anchor_x='left',  anchor_y='top',    color=cfg.time_best_color,    batch=self.label_batch)
+        self.best_time_label    = label("",             font_name=cfg.font_name, font_size=cfg.small_font_size, x=cfg.x_padding,                    y=self.sum_of_best_label.y - cfg.big_character_y,     anchor_x='left',  anchor_y='top',    color=cfg.time_best_color,    batch=self.label_batch)
+        self.current_time_label = label("0.00",         font_name=cfg.font_name, font_size=cfg.small_font_size, x=cfg.window_width - cfg.x_padding, y=self.total_time_label.y - cfg.big_character_y,      anchor_x='right', anchor_y='top',    color=cfg.time_neutral_color, batch=self.label_batch)
+        self.reset_label        = label("",             font_name=cfg.font_name, font_size=cfg.small_font_size, x=cfg.window_width - cfg.x_padding, y=self.current_time_label.y - cfg.small_character_y,  anchor_x='right', anchor_y='top',    color=cfg.resets_color,       batch=self.label_batch)
+        self.completion_label   = label("",             font_name=cfg.font_name, font_size=cfg.small_font_size, x=cfg.window_width - cfg.x_padding, y=self.reset_label.y - cfg.small_character_y,         anchor_x='right', anchor_y='top',    color=cfg.completion_color,    batch=self.label_batch)
+        self.accrued_time_label = label("0:00",         font_name=cfg.font_name, font_size=cfg.small_font_size, x=cfg.x_padding,                    y=cfg.y_padding,                                      anchor_x='left',  anchor_y='bottom', color=cfg.time_neutral_color, batch=self.label_batch)
         self.splits = []
-      else:
-        self.splits = self.splits[:n]
-      cfg.lastFile = ""
-      self.buildSplits()
-    
-    if mem.recording == 1 and mem.port is not None:
-      if mem.intermission == 1 and self.doneIntermission == 0:
-        self.currentTime.fromTics(mem.tics)
-        self.totalTime.copy(self.currentTime)
-        self.totalTime.addSecs(self.prevTotal)
-        self.doneIntermission = 1
-        if self.mapsPlayed <= len(self.splits):
-          self.splits[self.mapsPlayed - 1].end(self)
-        if self.mapsPlayed == len(self.splits):
-          self.finishRun()
-        self.makeSumOfBest()
-      elif mem.intermission == 0:
-        self.doneIntermission = 0
-      if self.currentMap != mem.mapNumber:
-        self.mapsPlayed += 1
-        if len(self.splits) >= self.mapsPlayed:
-          self.splits[self.mapsPlayed - 1].arrivals += 1
-        if self.mapsPlayed == 1:
-          self.attempts += 1
-        self.currentMap = mem.mapNumber
-        self.doneIntermission = 0
-        self.prevTotal.copy(self.totalTime)
-        self.prevAccrued.copy(self.accruedTime)
-      self.currentTime.fromTics(mem.tics)
-      self.totalTime.copy(self.currentTime)
-      self.totalTime.addSecs(self.prevTotal)
-      self.accruedTime.copy(self.prevAccrued)
-      self.accruedTime.add(self.currentTime)
-      
-      if mem.monsterAlive == 0:
-        self.completionLabel.text = "K"
-      elif mem.killCount == mem.monsterTotal:
-        self.completionLabel.text = "k"
-      else:
-        self.completionLabel.text = ""
-      if mem.itemFound == mem.itemTotal:
-        self.completionLabel.text += "I"
-      else:
-        self.completionLabel.text += ""
-      if mem.secretFound == mem.secretTotal:
-        self.completionLabel.text += "S"
-      else:
-        self.completionLabel.text += ""
-      
-      self.updateLabels()
+        self.done_intermission = 0
+        self.attempts = 0
+        self.maps_played = 0
+        self.current_map = 0
   
-  def resetSplits(self):
-    if len(self.splits) >= self.mapsPlayed and self.mapsPlayed > 0:
-      if not self.splits[self.mapsPlayed - 1].ended or len(self.splits) > self.mapsPlayed:
-        self.splits[self.mapsPlayed - 1].resets += 1
-    mem.recording = 0
-    self.mapsPlayed = 0
-    mem.mapNumber = 0
-    self.currentMap = 0
-    mem.tics = 0
-    self.totalTime.zero()
-    self.prevTotal.zero()
-    self.currentTime.zero()
-    self.completionLabel.text = ""
-    self.prevAccrued.copy(self.accruedTime)
-    self.updateLabels()
+  # set label text and color based on split times
+    def update_labels(self):
+        self.attempts_label.text = str(self.attempts)
+        if self.maps_played == 0:
+            self.total_time_label.color = cfg.time_neutral_color
+            self.best_time_label.text = ""
+            self.reset_label.text = ""
+        else:
+            if len(self.splits) >= self.maps_played:
+                self.best_time_label.text = self.splits[self.maps_played - 1].best_time.to_string()
+                if self.best_time_label.text == "0.00":
+                    self.best_time_label.text = "---"
+                self.reset_label.text = self.splits[self.maps_played - 1].resetText()
+            if len(self.splits) < self.maps_played:
+                better = 0
+            else:
+                better = self.total_time.compare_secs(self.splits[self.maps_played - 1].prev_total)
+            if better < 0:
+                self.total_time_label.color = cfg.time_bad_color
+            elif better > 0:
+                self.total_time_label.color = cfg.time_good_color
+            else:
+                self.total_time_label.color = cfg.time_neutral_color
+        if self.maps_played == 0:
+            self.current_time_label.color = cfg.time_neutral_color
+        else:
+            if len(self.splits) < self.maps_played:
+                better = 0
+            else:
+                better = self.current_time.compare_secs(self.splits[self.maps_played - 1].prev_time)
+            if better < 0:
+                self.current_time_label.color = cfg.time_bad_color
+            elif better > 0:
+                self.current_time_label.color = cfg.time_good_color
+            else:
+                self.current_time_label.color = cfg.time_neutral_color
+        self.total_time_label.text   = self.total_time.to_string(centi=False, forceM=True)
+        self.current_time_label.text = self.current_time.to_string()
+        self.accrued_time_label.text = self.accrued_time.to_string(centi=True, forceM=True)
     
-    for s in self.splits:
-      s.reset()
-    self.buildSplits()
-  
-  def buildSplits(self):
-    subTitleAdjust = cfg.SmallCharacterY
-    if self.subTitle == "":
-      subTitleAdjust = 0
+    # switch the title and update labels
+    def update_title(self, new_title="DooM"):
+        self.title = new_title
+        self.title_label.text = self.title
+        self.build_splits()
     
-    n = len(self.splits)
-    i = 0
-    for s in self.splits:
-      s.build(self.titleLabel.y - subTitleAdjust - (i + 1) * cfg.CharacterY)
-      i += 1
-    if cfg.hideSplits:
-      n = 0
+    # switch sub
+    def update_subtitle(self, new_title=""):
+        self.subtitle = new_title
+        self.subtitle_label.text = self.subtitle
+        self.build_splits()
     
-    self.makeSumOfBest()
+    # save the splits into a file
+    def save_splits_(self, file_name, change_name=True):
+        if change_name:
+            cfg.last_file = file_name
+        
+        f = open(file_name, 'w')
+        
+        print(self.title, file=f)
+        print(self.subtitle, file=f)
+        print(self.attempts, file=f)
+        print(self.accrued_time.to_simple_string(), file=f)
+        
+        for s in self.splits:
+            print(s.name + "; " + s.prev_time.to_simple_string() + " " + s.best_time.to_simple_string() + " " + str(s.resets) + " " + str(s.arrivals), file=f)
+        
+        f.close()
     
-    self.totalTimeLabel.y = self.titleLabel.y - subTitleAdjust - cfg.CharacterY * (n + 1)
-    self.currentTimeLabel.y = self.totalTimeLabel.y - cfg.BigCharacterY
-    self.sumOfBestLabel.y = self.totalTimeLabel.y
-    self.bestTimeLabel.y = self.currentTimeLabel.y
-    self.resetLabel.y = self.currentTimeLabel.y - cfg.SmallCharacterY
-    self.completionLabel.y = self.resetLabel.y - cfg.SmallCharacterY
-    self.updateLabels()
+    # wrapper of save function, backs up and queries for path
+    def save_splits(self):
+        if cfg.last_file != "":
+            self.backup("_s")
+            self.save_splits_(cfg.last_file)
+        else:
+            save_path = filedialog.asksaveasfilename(defaultextension=".ks", filetypes=[('krafSplit files', '.ks')])
+            if save_path == "":
+                return
+            self.save_splits_(save_path)
     
-  def draw(self):
-    if not cfg.hideSplits:
-      for s in self.splits:
-        s.draw()
-    self.labelBatch.draw()
-Screen = _screen_()
+    # save the splits into a backup file
+    def backup(self, c="_"):
+        if cfg.last_file != "":
+            self.save_splits_(cfg.last_file + c, change_name=False)
+    
+    # read splits from file
+    def readsplits(self, file_name):
+        if not os.path.isfile(file_name):
+            return
+        self.accrued_time.zero()
+        self.splits.clear()
+        cfg.last_file = file_name
+        f = open(file_name, 'r')
+        self.update_title(f.readline().rstrip())
+        self.update_subtitle(f.readline().rstrip())
+        self.attempts = int(f.readline().rstrip())
+        self.prev_accrued = dTime(text=f.readline().rstrip())
+        self.accrued_time.copy(self.prev_accrued)
+        for line in f:
+            l = line.rstrip()
+            if len(self.splits) > 0:
+                self.splits.append(Split(l, sum=self.splits[-1].prev_total))
+            else:
+                self.splits.append(Split(l))
+        self.build_splits()
+        self.backup()
+    
+    # end the run and overwrite the splits
+    def finish_run(self):
+        if self.splits[-1].improved():
+            for s in self.splits:
+                s.overwrite()
+    
+    # calculate the sum of best times
+    def make_sum_of_best(self):
+        self.sum_of_best.zero()
+        for s in self.splits:
+            if not s.best_time.exists():
+                self.sum_of_best.zero()
+                break
+            self.sum_of_best.add_secs(s.best_time)
+        self.sum_of_best_label.text = self.sum_of_best.to_string(centi=False, forceM=True)
+    
+    def update(self):
+        # close / reset the splits
+        if key.hit(pykey.C):
+            self.accrued_time.zero()
+            self.prev_accrued.zero()
+            self.splits = []
+            self.attempts = 0
+            self.update_subtitle()
+            self.update_title()
+            self.build_splits()
+            cfg.last_file = ""
+        
+        # save the splits
+        if key.hit(pykey.S):
+            self.save_splits()
+        
+        # set a new title
+        if key.hit(pykey.T):
+            title = simpledialog.askstring("", "Title")
+            if title == "" or title == None:
+                title = "Untitled"
+            self.update_title(title)
+        
+        # set a new sub title
+        if key.hit(pykey.Y):
+            subtitle = simpledialog.askstring("", "Sub Title")
+            if subtitle == None:
+                subtitle = ""
+            self.update_subtitle(subtitle)
+        
+        # hide or unhide the splits
+        if key.hit(pykey.H):
+            cfg.hide_splits = int(cfg.hide_splits == 0)
+            self.build_splits()
+        
+        # query to open a new split file
+        if key.hit(pykey.O):
+            openPath = filedialog.askopenfilename(defaultextension=".ks")
+            if openPath != "":
+                self.readsplits(openPath)
+        
+        # change the number of splits
+        if key.hit(pykey.N):
+            n = simpledialog.askstring("", "Split Count")
+            if n is not None:
+                n = int(n)
+            else:
+                n = 0
+            while len(self.splits) < n:
+                self.splits.append(Split(new=True))
+            if n == 0:
+                self.splits = []
+            else:
+                self.splits = self.splits[:n]
+            cfg.last_file = ""
+            self.build_splits()
+        
+        # enter here only if a demo is being recorded
+        if mem.recording == 1 and mem.port is not None:
+            if mem.intermission == 1 and self.done_intermission == 0:
+                self.current_time.from_tics(mem.tics)
+                self.total_time.copy(self.current_time)
+                self.total_time.add_secs(self.prev_total)
+                self.done_intermission = 1
+                if self.maps_played <= len(self.splits):
+                  self.splits[self.maps_played - 1].end(self)
+                if self.maps_played == len(self.splits):
+                  self.finish_run()
+                self.make_sum_of_best()
+            elif mem.intermission == 0:
+                self.done_intermission = 0
+            if self.current_map != mem.map_number:
+                self.maps_played += 1
+                if len(self.splits) >= self.maps_played:
+                  self.splits[self.maps_played - 1].arrivals += 1
+                if self.maps_played == 1:
+                  self.attempts += 1
+                self.current_map = mem.map_number
+                self.done_intermission = 0
+                self.prev_total.copy(self.total_time)
+                self.prev_accrued.copy(self.accrued_time)
+            self.current_time.from_tics(mem.tics)
+            self.total_time.copy(self.current_time)
+            self.total_time.add_secs(self.prev_total)
+            self.accrued_time.copy(self.prev_accrued)
+            self.accrued_time.add(self.current_time)
+            
+            # advanced-hud style notes for completion
+            if mem.monsters_alive == 0:
+                self.completion_label.text = "K"
+            elif mem.kill_count == mem.monster_total:
+                self.completion_label.text = "k"
+            else:
+                self.completion_label.text = ""
+            if mem.items_found == mem.item_total:
+                self.completion_label.text += "I"
+            else:
+                self.completion_label.text += ""
+            if mem.secrets_found == mem.secret_total:
+                self.completion_label.text += "S"
+            else:
+                self.completion_label.text += ""
+            
+            self.update_labels()
+    
+    # reset the timer and splits
+    def reset_splits(self):
+        if len(self.splits) >= self.maps_played and self.maps_played > 0:
+            if not self.splits[self.maps_played - 1].ended or len(self.splits) > self.maps_played:
+                self.splits[self.maps_played - 1].resets += 1
+        mem.recording = 0
+        self.maps_played = 0
+        mem.map_number = 0
+        self.current_map = 0
+        mem.tics = 0
+        self.total_time.zero()
+        self.prev_total.zero()
+        self.current_time.zero()
+        self.completion_label.text = ""
+        self.prev_accrued.copy(self.accrued_time)
+        self.update_labels()
+    
+        for s in self.splits:
+            s.reset()
+        self.build_splits()
+    
+    # set up label text and locations
+    def build_splits(self):
+        subtitle_adjust = cfg.small_character_y
+        if self.subtitle == "":
+            subtitle_adjust = 0
+        
+        n = len(self.splits)
+        i = 0
+        for s in self.splits:
+            s.build(self.title_label.y - subtitle_adjust - (i + 1) * cfg.character_y)
+            i += 1
+        if cfg.hide_splits:
+            n = 0
+        
+        self.make_sum_of_best()
+        self.total_time_label.y = self.title_label.y - subtitle_adjust - cfg.character_y * (n + 1)
+        self.current_time_label.y = self.total_time_label.y - cfg.big_character_y
+        self.sum_of_best_label.y = self.total_time_label.y
+        self.best_time_label.y = self.current_time_label.y
+        self.reset_label.y = self.current_time_label.y - cfg.small_character_y
+        self.completion_label.y = self.reset_label.y - cfg.small_character_y
+        self.update_labels()
+    
+    # draw the splits and labels
+    def draw(self):
+        if not cfg.hide_splits:
+            for s in self.splits:
+                s.draw()
+        self.label_batch.draw()
+screen = SplitContainer()
 
+# thread class for watching the tasklist
 class TaskThread(threading.Thread):
-  def run(self):
-    while True:
-      process = cfg.exe
-      taskList = os.popen("tasklist").readlines()
-      found = False
-      for task in taskList:
-        if task[0:len(process)] == process:
-          mem.newPid = int(task[29:34])
-          found = True
-          break
-      if not found:
-        mem.newPid = 0
-      time.sleep(1)
+    def run(self):
+        while True:
+            process = cfg.exe
+            taskList = os.popen("tasklist").readlines()
+            found = False
+            for task in taskList:
+                if task[0:len(process)] == process:
+                    mem.new_pid = int(task[29:34])
+                    found = True
+                    break
+            if not found:
+                mem.new_pid = 0
+            time.sleep(1)
 
+# store key presses into the key dict
 @window.event
 def on_key_press(symbol, modifiers):
   key.hitKey(symbol)
 
+# draw the splits on screen draw
 @window.event
 def on_draw():
   window.clear()
-  Screen.draw()
+  screen.draw()
 
+# backup and save the config on exit
 @window.event
 def on_close():
-  Screen.backup("_e")
-  cfg.saveConfig(window)
+  screen.backup("_e")
+  cfg.save_config(window)
 
-cfg.readConfig(window, Screen)
+# read the config and run the code
+cfg.read_config(window, screen)
 def update(dt):
-  if mem.newPid == 0:
-    mem.port = None
-  if mem.newPid > 0:
-    mem.parseMemory(Screen)
-  elif Screen.mapsPlayed > 0:
-    Screen.resetSplits()
-  Screen.update()
+    if mem.new_pid == 0:
+        mem.port = None
+    if mem.new_pid > 0:
+        mem.parse_memory(screen)
+    elif screen.maps_played > 0:
+        screen.reset_splits()
+    screen.update()
 
 taskThread = TaskThread(daemon=True)
 taskThread.start()
 
-pyglet.clock.schedule_interval(update, 1.)
+pyglet.clock.schedule_interval(update, 1.) # updates once per second
 pyglet.app.run()

@@ -37,80 +37,84 @@ GREENYELLOW  = (192, 255,   0, 255)
 PURPLE       = (192,   0, 255, 255)
 SKYBLUE2     = (  0, 192, 255, 255)
 
+# default configurations
 exe = "prboom-plus.exe"
-lastFile = ""
-hideSplits = 0
-WindowWidth   = 320
-WindowHeight  = 720
-BigFontSize   = 32
-FontSize      = 24
-SmallFontSize = 20
-titlePadding  = 16
-XPadding      = 16
-YPadding      = 16
-timeBadColor     = PINK
-timeBestColor    = SKYBLUE
-timeGoodColor    = LIME
-timeNeutralColor = LIGHTYELLOW
-titleColor       = WHITE
-subTitleColor    = LIGHTGRAY
-splitNameColor   = WHITE
-completionColor  = WHITE
-attemptsColor    = LIGHTBLUE
-resetsColor      = LIGHTBLUE
-fontName = 'Maiden Orange'
-fontFile = 'resource/maiden-orange/MaidenOrange.ttf'
+last_file = ""
+hide_splits = 0
+window_width    = 320
+window_height   = 720
+big_font_size   = 32
+font_size       = 24
+small_font_size = 20
+title_padding   = 16
+x_padding       = 16
+y_padding       = 16
+time_bad_color     = PINK
+time_best_color    = SKYBLUE
+time_good_color    = LIME
+time_neutral_color = LIGHTYELLOW
+title_color        = WHITE
+subtitle_color     = LIGHTGRAY
+split_name_color   = WHITE
+completion_color    = WHITE
+attempts_color     = LIGHTBLUE
+resets_color       = LIGHTBLUE
+font_name = 'Maiden Orange'
+font_file = 'resource/maiden-orange/MaidenOrange.ttf'
 
-def getCharacterSize(fontSize):
-  l = label("0", font_name=fontName, font_size=fontSize)
-  return l.content_width, l.content_height
+# determine character width / height for font / size
+def get_character_size(font_size):
+    l = label("0", font_name=font_name, font_size=font_size)
+    return l.content_width, l.content_height
 
+# set up pyglet font and determine character sizes
 def init():
-  global BigCharacterX, BigCharacterY
-  global CharacterX, CharacterY
-  global SmallCharacterX, SmallCharacterY
-  
-  pyglet.font.add_file(fontFile)
-  pyglet.font.load(fontName)
-  BigCharacterX, BigCharacterY     = getCharacterSize(BigFontSize)
-  CharacterX, CharacterY           = getCharacterSize(FontSize)
-  SmallCharacterX, SmallCharacterY = getCharacterSize(SmallFontSize)
+    global big_character_x, big_character_y
+    global character_x, character_y
+    global small_character_x, small_character_y
 
-def readConfig(window, screen):
-  global lastFile, titlePadding, hideSplits
-  if not os.path.isfile("config.txt"):
-    return
-  f = open("config.txt", 'r')
-  
-  x, y = window.get_location()
-  for line in f:
-    l = line.rstrip().split(" ")
+    pyglet.font.add_file(font_file)
+    pyglet.font.load(font_name)
+    big_character_x, big_character_y     = get_character_size(big_font_size)
+    character_x, character_y             = get_character_size(font_size)
+    small_character_x, small_character_y = get_character_size(small_font_size)
+
+# parse configuration file
+def read_config(window, screen):
+    global last_file, title_padding, hide_splits
+    if not os.path.isfile("config.txt"):
+        return
+    f = open("config.txt", 'r')
+    
+    x, y = window.get_location()
+    for line in f:
+        l = line.rstrip().split(" ")
     if len(l) == 3:
-      option = l[0]
-      if option == "last_file":
-        screen.readSplits(l[2])
-        lastFile = l[2]
-      elif option == "window_x":
-        window.set_location(int(l[2]), y)
-        x, y = window.get_location()
-      elif option == "window_y":
-        window.set_location(x, int(l[2]))
-        x, y = window.get_location()
-      elif option == "title_padding":
-        titlePadding = int(l[2])
-      elif option == "hide_splits":
-        hideSplits = int(l[2])
+        option = l[0]
+        if option == "last_file":
+            screen.readsplits(l[2])
+            last_file = l[2]
+        elif option == "window_x":
+            window.set_location(int(l[2]), y)
+            x, y = window.get_location()
+        elif option == "window_y":
+            window.set_location(x, int(l[2]))
+            x, y = window.get_location()
+        elif option == "title_padding":
+            title_padding = int(l[2])
+        elif option == "hide_splits":
+            hide_splits = int(l[2])
   
-  f.close()
+    f.close()
 
-def saveConfig(window):
-  f = open("config.txt", 'w')
-  
-  x, y = window.get_location()
-  print("last_file = " + lastFile, file=f)
-  print("window_x = " + str(x), file=f)
-  print("window_y = " + str(y), file=f)
-  print("title_padding = " + str(titlePadding), file=f)
-  print("hide_splits = " + str(hideSplits), file=f)
-  
-  f.close()
+def save_config(window):
+    f = open("config.txt", 'w')
+    
+    x, y = window.get_location()
+    print("last_file = " + last_file, file=f)
+    print("window_x = " + str(x), file=f)
+    print("window_y = " + str(y), file=f)
+    print("title_padding = " + str(title_padding), file=f)
+    print("hide_splits = " + str(hide_splits), file=f)
+    
+    f.close()
